@@ -1,9 +1,8 @@
 
 import streamlit as st
+import pandas as pd
 import json, os, re
 from datetime import date, datetime
-import pandas as pd
-import random
 
 # -------------------- FILES --------------------
 USER_FILE = "users.json"
@@ -112,9 +111,7 @@ if st.session_state['logged_in']:
         st.experimental_rerun()
 
     # -------------------- TABS --------------------
-    tabs = st.tabs(["Dashboard", "Register Tree", "Edit/Delete Tree", 
-                    "Update Tree Status", "Map View", "Leaderboard",
-                    "Authority Summary", "Export Report", "User Profile"])
+    tabs = st.tabs(["Dashboard", "Register Tree"])
     
     # -------------------- DASHBOARD --------------------
     with tabs[0]:
@@ -135,21 +132,20 @@ if st.session_state['logged_in']:
         c3.metric("Needs Water", needs_water)
         c4.metric("Dead Trees", dead)
         
-        # Neglect alert
-        neglected = [
-            t for t in filtered
-            if days_since_update(t.get("last_updated"))>10 and t.get("status")!="Dead"
-        ]
+        neglected = [t for t in filtered if days_since_update(t.get("last_updated"))>10 and t.get("status")!="Dead"]
         if neglected:
             st.error(f"{len(neglected)} trees need attention!")
 
-        # Display table
+        # SAFE DISPLAY: Ensure all columns exist
         if filtered:
             df = pd.DataFrame(filtered)
-            # Ensure status_badge column exists
             df = df.copy()
-            df["status_badge"] = df["status"].apply(lambda s: f"{s}")
-            st.dataframe(df[["id", "ward", "location", "species", "status_badge", "volunteer"]])
+            df["status_badge"] = df.get("status","Unknown")
+            # Ensure mandatory columns exist
+            for col in ["id","ward","location","species","volunteer"]:
+                if col not in df.columns:
+                    df[col] = "Unknown"
+            st.dataframe(df[["id","ward","location","species","status_badge","volunteer"]])
 
     # -------------------- REGISTER TREE --------------------
     with tabs[1]:
@@ -162,22 +158,19 @@ if st.session_state['logged_in']:
         lat = st.number_input("Latitude", format="%.6f", key="lat_reg")
         lon = st.number_input("Longitude", format="%.6f", key="lon_reg")
         
-        # Species survival check (Nashik placeholder)
         species_temp_range = {"Neem":(20,40),"Mango":(25,35),"Peepal":(20,38),"Banyan":(22,36),"Other":(15,40)}
         current_temp = 32
         can_survive = current_temp>=species_temp_range.get(species,(0,100))[0] and current_temp<=species_temp_range.get(species,(0,100))[1]
         
         if st.button("Register Tree", key="btn_register_tree"):
-            if any(t["ward"]==ward and t["location"]==location and t["species"]==species for t in trees):
+            if any(t.get("ward")==ward and t.get("location")==location and t.get("species")==species for t in trees):
                 st.warning("Tree already exists in this location")
             elif not can_survive:
                 st.error(f"{species} cannot survive at this location (temp {current_temp}°C)")
             else:
-                # Nutrients recommendation placeholder
                 nutrients = {"Nitrogen":"High","Phosphorus":"Medium","Potassium":"Medium"}
                 trees.append({"id":len(trees)+1,"ward":ward,"location":location,"species":species,
                               "volunteer":volunteer,"latitude":lat,"longitude":lon,"status":"Healthy",
                               "last_updated":str(date.today()),"nutrients":nutrients})
                 save_data(trees, DB_FILE)
                 st.success("Tree registered successfully")
-
