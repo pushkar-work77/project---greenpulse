@@ -12,61 +12,36 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- GOVERNMENT STYLE UI ----------
+# ---------- DATABASE FILE ----------
+DB_FILE = "trees.json"
+
+# ---------- DARK GOVERNMENT UI ----------
 st.markdown("""
 <style>
-
-/* MAIN BACKGROUND */
-.stApp {
-    background-color: #2f2f2f;
-    color: white;
-}
-
-/* TEXT COLORS */
-h1, h2, h3, h4, h5, h6, p, div, span, label {
-    color: white !important;
-}
-
-/* METRIC BOXES */
-.stMetric {
-    background-color: #3a3a3a;
-    padding: 15px;
-    border-radius: 10px;
-    border: 1px solid #555;
-}
-
-/* SIDEBAR */
-section[data-testid="stSidebar"] {
-    background-color: #1f1f1f;
-}
-
-/* TABLE BACKGROUND */
-table {
-    background-color: #3a3a3a !important;
-    color: white !important;
-}
-
-/* BADGES */
-.badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    color: white;
-    font-weight: bold;
-}
+.stApp {background-color:#2f2f2f;color:white;}
+h1,h2,h3,h4,h5,h6,p,div,span,label {color:white !important;}
+.stMetric {background:#3a3a3a;padding:15px;border-radius:10px;border:1px solid #555;}
+section[data-testid="stSidebar"] {background:#1f1f1f;}
+table {background:#3a3a3a !important;color:white !important;}
+.badge {padding:6px 12px;border-radius:12px;color:white;font-weight:bold;}
 .healthy {background:#2ecc71;}
 .needswater {background:#f39c12;}
 .dead {background:#e74c3c;}
-
 </style>
 """, unsafe_allow_html=True)
 
-
 # ---------- DATA FUNCTIONS ----------
 def load_data():
-    if not os.path.exists(DB_FILE):
+    try:
+        if not os.path.exists(DB_FILE):
+            return []
+        with open(DB_FILE, "r") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+            return []
+    except:
         return []
-    with open(DB_FILE, "r") as f:
-        return json.load(f)
 
 def save_data(data):
     with open(DB_FILE, "w") as f:
@@ -90,7 +65,6 @@ def status_badge(status):
 # ---------- AI PREDICTION ----------
 def predict_survival(tree):
     score = 0
-
     days = days_since_update(tree.get("last_updated"))
 
     if days <= 7:
@@ -111,8 +85,10 @@ def predict_survival(tree):
 
     return min(score, 100)
 
+# ---------- LOAD DATA ----------
 trees = load_data()
 
+# ---------- TITLE ----------
 st.title("🌳 Urban Forest Survival Tracker")
 st.caption("Smart Monitoring Dashboard — Nashik")
 
@@ -148,7 +124,6 @@ if menu == "Dashboard":
         avg_prediction = sum(predict_survival(t) for t in filtered) / len(filtered)
         st.info(f"AI Estimated Overall Survival: {round(avg_prediction, 2)}%")
 
-    if filtered:
         df = pd.DataFrame(filtered)
         df["AI Survival %"] = df.apply(predict_survival, axis=1)
         df["status"] = df["status"].apply(status_badge)
@@ -256,7 +231,7 @@ elif menu == "Leaderboard":
 # ---------- AUTHORITY SUMMARY ----------
 elif menu == "Authority Summary":
 
-    st.markdown("## 🌳 Urban Forest Survival Report — Nashik")
+    st.subheader("Urban Forest Survival Report — Nashik")
 
     if not trees:
         st.warning("No data available.")
