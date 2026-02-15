@@ -12,19 +12,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- STYLES ----------
+# ---------- STYLE ----------
 st.markdown("""
 <style>
-.badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    color: white;
-    font-weight: bold;
-    display: inline-block;
-}
-.healthy {background-color: #2ecc71;}
-.needswater {background-color: #f39c12;}
-.dead {background-color: #e74c3c;}
+.badge {padding:6px 12px;border-radius:12px;color:white;font-weight:bold;}
+.healthy {background:#2ecc71;}
+.needswater {background:#f39c12;}
+.dead {background:#e74c3c;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -73,10 +67,7 @@ if menu == "Dashboard":
     wards = sorted(set(t.get("ward", "Unknown") for t in trees)) if trees else []
     selected_ward = st.selectbox("Filter by Ward", ["All"] + wards)
 
-    if selected_ward != "All":
-        filtered = [t for t in trees if t.get("ward", "Unknown") == selected_ward]
-    else:
-        filtered = trees
+    filtered = [t for t in trees if t.get("ward", "Unknown") == selected_ward] if selected_ward != "All" else trees
 
     total = len(filtered)
     healthy = sum(1 for t in filtered if t.get("status") == "Healthy")
@@ -92,29 +83,18 @@ if menu == "Dashboard":
     c4.metric("Dead Trees", dead)
 
     st.subheader("Tree Health Distribution")
-    status_df = pd.DataFrame({
+    chart_df = pd.DataFrame({
         "Status": ["Healthy", "Needs Water", "Dead"],
         "Count": [healthy, needs_water, dead]
     })
-    st.bar_chart(status_df.set_index("Status"))
+    st.bar_chart(chart_df.set_index("Status"))
 
-    st.subheader("Needs Water Recommendation")
-    water_recommend = [
-        t for t in filtered
-        if days_since_update(t.get("last_updated")) > 5
-        and t.get("status") == "Healthy"
-    ]
-    if water_recommend:
-        st.warning(f"{len(water_recommend)} trees should be checked")
-    else:
-        st.success("No watering needed")
-
-    st.subheader("Neglected Trees Alert")
     neglected = [
         t for t in filtered
         if days_since_update(t.get("last_updated")) > 10
         and t.get("status") != "Dead"
     ]
+
     if neglected:
         st.error(f"{len(neglected)} trees need attention")
 
@@ -130,13 +110,12 @@ elif menu == "Register Tree":
     location = st.text_input("Location")
     species = st.text_input("Species")
     volunteer = st.text_input("Volunteer Name")
-
     lat = st.number_input("Latitude", format="%.6f")
     lon = st.number_input("Longitude", format="%.6f")
 
     if st.button("Register"):
         if ward and location and species and volunteer:
-            tree = {
+            trees.append({
                 "id": len(trees) + 1,
                 "ward": ward,
                 "location": location,
@@ -146,8 +125,7 @@ elif menu == "Register Tree":
                 "longitude": lon,
                 "status": "Healthy",
                 "last_updated": str(date.today())
-            }
-            trees.append(tree)
+            })
             save_data(trees)
             st.success("Tree registered successfully!")
 
@@ -172,9 +150,9 @@ elif menu == "Map View":
     if trees:
         df = pd.DataFrame(trees)
         if "latitude" in df and "longitude" in df:
-            map_data = df[["latitude", "longitude"]].dropna()
-            if not map_data.empty:
-                st.map(map_data)
+            map_df = df[["latitude", "longitude"]].dropna()
+            if not map_df.empty:
+                st.map(map_df)
 
 # ---------- LEADERBOARD ----------
 elif menu == "Leaderboard":
@@ -203,7 +181,6 @@ elif menu == "Authority Summary":
 
     df = pd.DataFrame(trees)
     df["ward"] = df.get("ward", "Unknown").fillna("Unknown")
-    df["volunteer"] = df.get("volunteer", "Unknown").fillna("Unknown")
     df["status"] = df.get("status", "Healthy")
 
     total = len(df)
@@ -215,11 +192,7 @@ elif menu == "Authority Summary":
     c1.metric("Total Trees", total)
     c2.metric("Survival Rate (%)", survival_rate)
 
-    impact_score = round(
-        (survival_rate * 0.6) +
-        ((1 - dead / total) * 100 * 0.4 if total else 0),
-        2
-    )
+    impact_score = round((survival_rate * 0.6) + ((1 - dead / total) * 100 * 0.4 if total else 0), 2)
     st.success(f"Urban Green Impact Score: {impact_score}/100")
 
     ward_summary = df.groupby("ward").agg(
@@ -250,10 +223,4 @@ elif menu == "Export Report":
             file_name="nashik_tree_report.csv",
             mime="text/csv"
         )
-
-)
-
-   
-
-
 
