@@ -5,29 +5,21 @@ import os
 from datetime import date, datetime
 import pandas as pd
 
-# ---------------- SAFE RERUN ----------------
-def safe_rerun():
-    try:
-        st.rerun()
-    except:
-        pass
-
-# ---------------- FILE PATHS ----------------
+# ================= FILE PATHS =================
 TREE_DB = "trees.json"
 USER_DB = "users.json"
 
-# ---------------- PAGE CONFIG ----------------
+# ================= PAGE CONFIG =================
 st.set_page_config(
     page_title="Urban Forest Survival Tracker",
     page_icon="🌳",
     layout="wide"
 )
 
-# ---------------- GOVERNMENT STYLE UI ----------------
+# ================= UI STYLE =================
 st.markdown("""
 <style>
 body {background-color:#e6e6e6;}
-.main {background-color:#e6e6e6;}
 .stButton>button {
     background-color:#00695c;
     color:white;
@@ -37,19 +29,18 @@ body {background-color:#e6e6e6;}
 }
 .stButton>button:hover {
     background-color:#004d40;
-    color:white;
-}
-.card {
-    padding:15px;
-    border-radius:10px;
-    background:white;
-    box-shadow:0 2px 6px rgba(0,0,0,0.2);
-    margin-bottom:10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- DATA FUNCTIONS ----------------
+# ================= SAFE RERUN =================
+def safe_rerun():
+    try:
+        st.rerun()
+    except:
+        pass
+
+# ================= DATA FUNCTIONS =================
 def load_json(path):
     if not os.path.exists(path):
         return []
@@ -70,110 +61,110 @@ def days_since_update(d):
     except:
         return 999
 
+# ================= LOAD DATA =================
 trees = load_json(TREE_DB)
 users = load_json(USER_DB)
 
-# ---------------- SESSION STATE ----------------
+# ================= SESSION STATE =================
 if "user" not in st.session_state:
     st.session_state.user = None
 
-if "reg_step" not in st.session_state:
-    st.session_state.reg_step = 1
+if "page" not in st.session_state:
+    st.session_state.page = "login"   # login | register | app
 
 # =====================================================
-#                 USER AUTHENTICATION
+#                     LOGIN PAGE
 # =====================================================
-
-def registration_flow():
-    st.title("🌳 Nashik Urban Forest System")
-
-    step = st.session_state.reg_step
-
-    # STEP 1
-    if step == 1:
-        st.subheader("User Information")
-
-        name = st.text_input("Full Name")
-        role = st.selectbox("Role", ["Volunteer", "Government Authority"])
-
-        col1, col2 = st.columns(2)
-        if col2.button("Next ➜"):
-            if name:
-                st.session_state.reg_name = name
-                st.session_state.reg_role = role
-                st.session_state.reg_step = 2
-                safe_rerun()
-            else:
-                st.warning("Enter name")
-
-    # STEP 2
-    elif step == 2:
-        st.subheader("Location Details")
-
-        ward = st.text_input("Ward")
-        location = st.text_input("Location (Must be Nashik)")
-
-        col1, col2 = st.columns(2)
-        if col1.button("⬅ Back"):
-            st.session_state.reg_step = 1
-            safe_rerun()
-
-        if col2.button("Register"):
-            if "nashik" in location.lower():
-                user = {
-                    "name": st.session_state.reg_name,
-                    "role": st.session_state.reg_role,
-                    "ward": ward,
-                    "location": location
-                }
-                users.append(user)
-                save_json(USER_DB, users)
-
-                st.session_state.user = user
-                st.session_state.reg_step = 1
-                st.success("Registration Successful")
-                safe_rerun()
-            else:
-                st.error("Location must be Nashik")
-
 def login_flow():
-    st.title("🌳 Urban Forest Login")
+    st.title("🌳 Urban Forest Survival System")
+    st.subheader("Login")
 
-    names = [u["name"] for u in users]
+    users = load_json(USER_DB)
 
-    if not names:
-        st.info("No users registered. Please register.")
-        registration_flow()
+    if not users:
+        st.info("No users found. Please register first.")
+        if st.button("Create New Account"):
+            st.session_state.page = "register"
+            safe_rerun()
         return
 
-    name = st.selectbox("Select User", names)
+    names = [u["name"] for u in users]
+    selected = st.selectbox("Select User", names)
 
     col1, col2 = st.columns(2)
+
     if col1.button("Login"):
-        st.session_state.user = next(u for u in users if u["name"] == name)
+        st.session_state.user = next(u for u in users if u["name"] == selected)
+        st.session_state.page = "app"
         safe_rerun()
 
     if col2.button("New Registration"):
-        registration_flow()
+        st.session_state.page = "register"
+        safe_rerun()
+
+# =====================================================
+#                  REGISTRATION PAGE
+# =====================================================
+def registration_flow():
+    st.title("🌱 New User Registration")
+
+    name = st.text_input("Full Name")
+    role = st.selectbox("Role", ["Volunteer", "Government Authority"])
+    ward = st.text_input("Ward")
+    location = st.text_input("Location (Must include Nashik)")
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("⬅ Back to Login"):
+        st.session_state.page = "login"
+        safe_rerun()
+
+    if col2.button("Register"):
+        if not name:
+            st.warning("Please enter your name")
+            return
+
+        if "nashik" not in location.lower():
+            st.error("Location must be Nashik")
+            return
+
+        users = load_json(USER_DB)
+
+        if any(u["name"] == name for u in users):
+            st.error("User already exists. Please login.")
+            return
+
+        new_user = {
+            "name": name,
+            "role": role,
+            "ward": ward if ward else "Unknown",
+            "location": location
+        }
+
+        users.append(new_user)
+        save_json(USER_DB, users)
+
+        st.session_state.user = new_user
+        st.session_state.page = "app"
+
+        st.success("Registration successful!")
+        safe_rerun()
 
 # =====================================================
 #                    MAIN APP
 # =====================================================
-
 def main_app():
     st.title("🌳 Urban Forest Survival Tracker — Nashik")
 
     menu = st.sidebar.selectbox(
         "Menu",
         ["Dashboard", "Register Tree", "Edit/Delete Tree",
-         "Update Status", "Map View", "Leaderboard",
-         "Authority Summary", "Export Report", "Logout"]
+         "Update Status", "Map View", "Authority Summary",
+         "Export Report", "Logout"]
     )
 
-    # ---------------- DASHBOARD ----------------
+    # ---------- DASHBOARD ----------
     if menu == "Dashboard":
-        st.subheader("City Overview")
-
         total = len(trees)
         healthy = sum(1 for t in trees if t.get("status") == "Healthy")
         dead = sum(1 for t in trees if t.get("status") == "Dead")
@@ -187,10 +178,8 @@ def main_app():
             df = pd.DataFrame(trees)
             st.bar_chart(df["status"].value_counts())
 
-    # ---------------- REGISTER TREE ----------------
+    # ---------- REGISTER TREE ----------
     elif menu == "Register Tree":
-        st.subheader("Register New Tree")
-
         ward = st.text_input("Ward")
         location = st.text_input("Location")
         species = st.text_input("Species")
@@ -212,8 +201,9 @@ def main_app():
             trees.append(tree)
             save_json(TREE_DB, trees)
             st.success("Tree Registered")
+            safe_rerun()
 
-    # ---------------- EDIT DELETE ----------------
+    # ---------- EDIT DELETE ----------
     elif menu == "Edit/Delete Tree":
         if not trees:
             st.info("No trees available")
@@ -227,6 +217,7 @@ def main_app():
         location = st.text_input("Location", tree["location"])
 
         col1, col2 = st.columns(2)
+
         if col1.button("Save"):
             tree["ward"] = ward
             tree["location"] = location
@@ -241,7 +232,7 @@ def main_app():
             st.warning("Deleted")
             safe_rerun()
 
-    # ---------------- UPDATE STATUS ----------------
+    # ---------- UPDATE STATUS ----------
     elif menu == "Update Status":
         if not trees:
             st.info("No trees available")
@@ -259,20 +250,14 @@ def main_app():
             save_json(TREE_DB, trees)
             st.success("Updated")
 
-    # ---------------- MAP ----------------
+    # ---------- MAP ----------
     elif menu == "Map View":
         if trees:
             df = pd.DataFrame(trees)
             if "latitude" in df and "longitude" in df:
                 st.map(df[["latitude", "longitude"]])
 
-    # ---------------- LEADERBOARD ----------------
-    elif menu == "Leaderboard":
-        if trees:
-            df = pd.DataFrame(trees)
-            st.bar_chart(df["ward"].value_counts())
-
-    # ---------------- AUTHORITY SUMMARY ----------------
+    # ---------- AUTHORITY SUMMARY ----------
     elif menu == "Authority Summary":
         if not trees:
             st.info("No data")
@@ -287,24 +272,28 @@ def main_app():
         st.dataframe(ward_summary)
         st.bar_chart(ward_summary["Survival %"])
 
-    # ---------------- EXPORT ----------------
+    # ---------- EXPORT ----------
     elif menu == "Export Report":
         if trees:
             df = pd.DataFrame(trees)
             csv = df.to_csv(index=False).encode()
             st.download_button("Download Report", csv, "nashik_report.csv")
 
-    # ---------------- LOGOUT ----------------
+    # ---------- LOGOUT ----------
     elif menu == "Logout":
         st.session_state.user = None
+        st.session_state.page = "login"
         safe_rerun()
 
 # =====================================================
-#                   APP ENTRY POINT
+#                   APP ENTRY
 # =====================================================
-
-if st.session_state.user is None:
+if st.session_state.page == "login":
     login_flow()
-else:
+
+elif st.session_state.page == "register":
+    registration_flow()
+
+elif st.session_state.page == "app":
     main_app()
 
