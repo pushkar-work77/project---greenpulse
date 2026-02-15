@@ -146,8 +146,10 @@ if st.session_state['logged_in']:
         # Display table
         if filtered:
             df = pd.DataFrame(filtered)
+            # Ensure status_badge column exists
+            df = df.copy()
             df["status_badge"] = df["status"].apply(lambda s: f"{s}")
-            st.dataframe(df[["id","ward","location","species","status_badge","volunteer"]])
+            st.dataframe(df[["id", "ward", "location", "species", "status_badge", "volunteer"]])
 
     # -------------------- REGISTER TREE --------------------
     with tabs[1]:
