@@ -12,9 +12,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- STYLE ----------
+# ---------- GOVERNMENT STYLE UI ----------
 st.markdown("""
 <style>
+.main {background-color:#f4f6f9;}
+h1 {color:#0b3d91;}
+h2, h3 {color:#1b5e20;}
+.stMetric {background:white;padding:15px;border-radius:10px;border:1px solid #ddd;}
 .badge {padding:6px 12px;border-radius:12px;color:white;font-weight:bold;}
 .healthy {background:#2ecc71;}
 .needswater {background:#f39c12;}
@@ -50,6 +54,30 @@ def status_badge(status):
     else:
         return '<span class="badge dead">Dead</span>'
 
+# ---------- AI PREDICTION ----------
+def predict_survival(tree):
+    score = 0
+
+    days = days_since_update(tree.get("last_updated"))
+
+    if days <= 7:
+        score += 40
+    elif days <= 15:
+        score += 25
+    else:
+        score += 5
+
+    status = tree.get("status")
+    if status == "Healthy":
+        score += 40
+    elif status == "Needs Water":
+        score += 20
+
+    if tree.get("volunteer"):
+        score += 20
+
+    return min(score, 100)
+
 trees = load_data()
 
 st.title("🌳 Urban Forest Survival Tracker")
@@ -57,8 +85,9 @@ st.caption("Smart Monitoring Dashboard — Nashik")
 
 menu = st.sidebar.selectbox(
     "Choose Action",
-    ["Dashboard", "Register Tree", "Update Tree Status",
-     "Map View", "Leaderboard", "Authority Summary", "Export Report"]
+    ["Dashboard", "Register Tree", "Edit / Delete Tree",
+     "Update Tree Status", "Map View", "Leaderboard",
+     "Authority Summary", "Export Report"]
 )
 
 # ---------- DASHBOARD ----------
@@ -82,24 +111,13 @@ if menu == "Dashboard":
     c3.metric("Needs Water", needs_water)
     c4.metric("Dead Trees", dead)
 
-    st.subheader("Tree Health Distribution")
-    chart_df = pd.DataFrame({
-        "Status": ["Healthy", "Needs Water", "Dead"],
-        "Count": [healthy, needs_water, dead]
-    })
-    st.bar_chart(chart_df.set_index("Status"))
-
-    neglected = [
-        t for t in filtered
-        if days_since_update(t.get("last_updated")) > 10
-        and t.get("status") != "Dead"
-    ]
-
-    if neglected:
-        st.error(f"{len(neglected)} trees need attention")
+    if filtered:
+        avg_prediction = sum(predict_survival(t) for t in filtered) / len(filtered)
+        st.info(f"AI Estimated Overall Survival: {round(avg_prediction, 2)}%")
 
     if filtered:
         df = pd.DataFrame(filtered)
+        df["AI Survival %"] = df.apply(predict_survival, axis=1)
         df["status"] = df["status"].apply(status_badge)
         st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -129,6 +147,45 @@ elif menu == "Register Tree":
             save_data(trees)
             st.success("Tree registered successfully!")
 
+# ---------- EDIT DELETE ----------
+elif menu == "Edit / Delete Tree":
+
+    if not trees:
+        st.info("No trees available.")
+        st.stop()
+
+    tree_id = st.selectbox("Select Tree ID", [t.get("id") for t in trees])
+    tree = next((t for t in trees if t.get("id") == tree_id), None)
+
+    if tree:
+        new_ward = st.text_input("Ward", tree.get("ward"))
+        new_location = st.text_input("Location", tree.get("location"))
+        new_species = st.text_input("Species", tree.get("species"))
+        new_volunteer = st.text_input("Volunteer", tree.get("volunteer"))
+        new_lat = st.number_input("Latitude", value=float(tree.get("latitude", 0.0)))
+        new_lon = st.number_input("Longitude", value=float(tree.get("longitude", 0.0)))
+
+        col1, col2 = st.columns(2)
+
+        if col1.button("Save Changes"):
+            tree.update({
+                "ward": new_ward,
+                "location": new_location,
+                "species": new_species,
+                "volunteer": new_volunteer,
+                "latitude": new_lat,
+                "longitude": new_lon,
+                "last_updated": str(date.today())
+            })
+            save_data(trees)
+            st.success("Tree updated!")
+
+        if col2.button("Delete Tree"):
+            trees.remove(tree)
+            save_data(trees)
+            st.warning("Tree deleted!")
+            st.rerun()
+
 # ---------- UPDATE ----------
 elif menu == "Update Tree Status":
 
@@ -149,10 +206,9 @@ elif menu == "Map View":
 
     if trees:
         df = pd.DataFrame(trees)
-        if "latitude" in df and "longitude" in df:
-            map_df = df[["latitude", "longitude"]].dropna()
-            if not map_df.empty:
-                st.map(map_df)
+        map_df = df[["latitude", "longitude"]].dropna()
+        if not map_df.empty:
+            st.map(map_df)
 
 # ---------- LEADERBOARD ----------
 elif menu == "Leaderboard":
@@ -167,33 +223,28 @@ elif menu == "Leaderboard":
 # ---------- AUTHORITY SUMMARY ----------
 elif menu == "Authority Summary":
 
-    st.markdown("""
-    <div style="text-align:center">
-        <h1>🌳 Urban Forest Survival Report</h1>
-        <h4>Nashik Smart Green Monitoring System</h4>
-        <hr>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("## 🌳 Urban Forest Survival Report — Nashik")
 
     if not trees:
         st.warning("No data available.")
         st.stop()
 
     df = pd.DataFrame(trees)
-    df["ward"] = df.get("ward", "Unknown").fillna("Unknown")
-    df["status"] = df.get("status", "Healthy")
+    df["AI Survival %"] = df.apply(predict_survival, axis=1)
 
     total = len(df)
     healthy = len(df[df["status"] == "Healthy"])
     dead = len(df[df["status"] == "Dead"])
-    survival_rate = round((healthy / total) * 100, 2) if total else 0
+    survival_rate = round((healthy / total) * 100, 2)
 
     c1, c2 = st.columns(2)
     c1.metric("Total Trees", total)
     c2.metric("Survival Rate (%)", survival_rate)
 
-    impact_score = round((survival_rate * 0.6) + ((1 - dead / total) * 100 * 0.4 if total else 0), 2)
-    st.success(f"Urban Green Impact Score: {impact_score}/100")
+    st.subheader("AI Risk Assessment")
+    st.write("High Risk Trees:", len(df[df["AI Survival %"] < 40]))
+    st.write("Moderate Risk Trees:", len(df[(df["AI Survival %"] >= 40) & (df["AI Survival %"] < 70)]))
+    st.write("Low Risk Trees:", len(df[df["AI Survival %"] >= 70]))
 
     ward_summary = df.groupby("ward").agg(
         Total=("id", "count"),
