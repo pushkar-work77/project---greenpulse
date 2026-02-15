@@ -15,18 +15,51 @@ st.set_page_config(
 # ---------- GOVERNMENT STYLE UI ----------
 st.markdown("""
 <style>
-.main {background-color:#f4f6f9;}
-h1 {color:#0b3d91;}
-h2, h3 {color:#1b5e20;}
-.stMetric {background:white;padding:15px;border-radius:10px;border:1px solid #ddd;}
-.badge {padding:6px 12px;border-radius:12px;color:white;font-weight:bold;}
+
+/* MAIN BACKGROUND */
+.stApp {
+    background-color: #2f2f2f;
+    color: white;
+}
+
+/* TEXT COLORS */
+h1, h2, h3, h4, h5, h6, p, div, span, label {
+    color: white !important;
+}
+
+/* METRIC BOXES */
+.stMetric {
+    background-color: #3a3a3a;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #555;
+}
+
+/* SIDEBAR */
+section[data-testid="stSidebar"] {
+    background-color: #1f1f1f;
+}
+
+/* TABLE BACKGROUND */
+table {
+    background-color: #3a3a3a !important;
+    color: white !important;
+}
+
+/* BADGES */
+.badge {
+    padding: 6px 12px;
+    border-radius: 12px;
+    color: white;
+    font-weight: bold;
+}
 .healthy {background:#2ecc71;}
 .needswater {background:#f39c12;}
 .dead {background:#e74c3c;}
+
 </style>
 """, unsafe_allow_html=True)
 
-DB_FILE = "trees.json"
 
 # ---------- DATA FUNCTIONS ----------
 def load_data():
